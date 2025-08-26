@@ -1,0 +1,12 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>netstandard2.0</TargetFramework>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Echo.Ast" Version="1.0.0-master.353" />
+        <PackageReference Include="Echo.Platforms.AsmResolver" Version="1.0.0-master.353" />
+    </ItemGroup>
+
+</Project>

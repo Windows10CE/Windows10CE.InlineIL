@@ -1,0 +1,14 @@
+<Solution>
+    <Folder Name="/Solution Items/">
+        <File Path="Directory.Build.props" />
+        <File Path="nuget.config" />
+        <File Path=".gitignore" />
+    </Folder>
+    <Folder Name="/src/">
+        <Project Path="src/Windows10CE.InlineIL.Processor/Windows10CE.InlineIL.Processor.csproj" />
+        <Project Path="src/Windows10CE.InlineIL.Task/Windows10CE.InlineIL.Task.csproj" />
+    </Folder>
+    <Folder Name="/test/">
+        <Project Path="test/Scratchpad/Scratchpad.csproj" />
+    </Folder>
+</Solution>
