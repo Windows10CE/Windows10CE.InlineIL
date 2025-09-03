@@ -3,6 +3,7 @@ using AsmResolver.DotNet;
 using AsmResolver.DotNet.Signatures;
 using AsmResolver.PE.DotNet.Cil;
 using AsmResolver.PE.DotNet.Metadata.Tables;
+using Echo;
 using Echo.Ast.Construction;
 using Echo.Platforms.AsmResolver;
 
@@ -24,6 +25,7 @@ public static class AssemblyProcessor
             TypeReference OwningType,
             string Name,
             TypeSignature ReturnType,
+            CallingConventionAttributes Attributes,
             ImmutableList<TypeSignature> ParameterTypes
         ) : UserData;
     }
@@ -36,8 +38,8 @@ public static class AssemblyProcessor
         var purityClassifier = new CilPurityClassifier
         {
             DefaultMethodAccessPurity = true,
-            DefaultMethodCallPurity = true,
-            DefaultTypeAccessPurity = true,
+            DefaultMethodCallPurity = Trilean.Unknown,
+            DefaultTypeAccessPurity = true
         };
 
         var file = File.Open(outputPath, FileMode.Create, FileAccess.Write);
@@ -64,6 +66,8 @@ public static class AssemblyProcessor
             {
                 
             }
+            
+            dataGraph.ToDotGraph(writer);
         }
     }
     
