@@ -8,8 +8,8 @@
     </PropertyGroup>
     
     <ItemGroup>
+        <ProjectReference Include="../../src/Windows10CE.InlineIL/Windows10CE.InlineIL.csproj" />
         <ProjectReference Include="../../src/Windows10CE.InlineIL.Processor/Windows10CE.InlineIL.Processor.csproj" />
-        <PackageReference Include="InlineIL.Fody" Version="1.10.1" />
     </ItemGroup>
 
 </Project>

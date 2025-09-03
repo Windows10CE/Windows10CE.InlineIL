@@ -1,4 +1,6 @@
-﻿using AsmResolver.DotNet;
+﻿using System.Collections.Immutable;
+using AsmResolver.DotNet;
+using AsmResolver.DotNet.Signatures;
 using AsmResolver.PE.DotNet.Cil;
 using AsmResolver.PE.DotNet.Metadata.Tables;
 using Echo.Ast.Construction;
@@ -8,6 +10,24 @@ namespace Windows10CE.InlineIL.Processor;
 
 public static class AssemblyProcessor
 {
+    private abstract record UserData
+    {
+        public bool ShouldRemove { get; init; }
+
+        public sealed record String(string Value) : UserData;
+
+        public sealed record Int32(int Value) : UserData;
+        
+        public sealed record ConstructedType(TypeSignature Signature) : UserData;
+
+        public sealed record ConstructedMethod(
+            TypeReference OwningType,
+            string Name,
+            TypeSignature ReturnType,
+            ImmutableList<TypeSignature> ParameterTypes
+        ) : UserData;
+    }
+    
     public static void Process(string inputPath, IEnumerable<string> allReferences, string outputPath)
     {
         var asm = AssemblyDefinition.FromFile(inputPath);
@@ -37,9 +57,13 @@ public static class AssemblyProcessor
                 continue;
             }
 
-            var flowGraph = body.ConstructStaticFlowGraph().Lift(purityClassifier);
-            
-            flowGraph.ToDotGraph(writer);
+            var flowGraph = body.ConstructSymbolicFlowGraph(out var dataGraph).Lift(purityClassifier);
+            var offsetMap = dataGraph.Nodes.CreateOffsetMap();
+
+            foreach (var statement in flowGraph.Nodes.SelectMany(node => node.Contents.Instructions))
+            {
+                
+            }
         }
     }
     
@@ -54,6 +78,6 @@ public static class AssemblyProcessor
             _ => null
         };
 
-        return scope?.Name == "InlineIL";
+        return scope?.Name == "Windows10CE.InlineIL";
     }
 }

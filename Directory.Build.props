@@ -1,6 +1,6 @@
 <Project>
     <PropertyGroup>
-        <UseArtifactsOutput>false</UseArtifactsOutput>
+        <UseArtifactsOutput>true</UseArtifactsOutput>
         
         <LangVersion>preview</LangVersion>
         <Nullable>enable</Nullable>

@@ -7,6 +7,7 @@
     <Folder Name="/src/">
         <Project Path="src/Windows10CE.InlineIL.Processor/Windows10CE.InlineIL.Processor.csproj" />
         <Project Path="src/Windows10CE.InlineIL.Task/Windows10CE.InlineIL.Task.csproj" />
+        <Project Path="src/Windows10CE.InlineIL/Windows10CE.InlineIL.csproj" />
     </Folder>
     <Folder Name="/test/">
         <Project Path="test/Scratchpad/Scratchpad.csproj" />

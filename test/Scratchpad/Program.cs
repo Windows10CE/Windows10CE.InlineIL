@@ -1,15 +1,22 @@
 ﻿using System.Reflection;
 using Windows10CE.InlineIL.Processor;
-using InlineIL;
-using ILE = InlineIL.IL.Emit;
+using Windows10CE.InlineIL;
 
 AssemblyProcessor.Process(Assembly.GetExecutingAssembly().Location, [], "outdir");
 
 static int TestMethod()
 {
-    ILE.Ldc_R4(1f);
-    ILE.Ldc_R4(1f);
-    ILE.Call(new MethodRef(typeof(MathF), "Log", typeof(float), 0, typeof(float), typeof(float)));
-    ILE.Conv_I4();
+    ILEmit.Ldc_I4(5);
+    ILEmit.Ldc_I4(10);
+    ILEmit.Call(
+        MethodRef.Create(typeof(C), "Add", typeof(int), false)
+            .WithParameter(typeof(int))
+            .WithParameter(typeof(int))
+    );
     return IL.Return<int>();
+}
+
+class C
+{
+    public static int Add(int a, int b) => a + b;
 }
