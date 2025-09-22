@@ -1,42 +1,28 @@
 ﻿using System.Reflection;
+using System.Runtime.CompilerServices;
 using Windows10CE.InlineIL.Processor;
 using Windows10CE.InlineIL;
 
-AssemblyProcessor.Process(Assembly.GetExecutingAssembly().Location, [], "outdir");
+AssemblyProcessor.Process(Assembly.GetExecutingAssembly().Location, [], "newasm.dll");
 
-
-static int TestMethod()
+try
 {
-    var label = IL.DefineLabel();
-    ILEmit.Br(label);
-    ILEmit.Ldc_I4(5);
-    IL.MarkLabel(label);
-    ILEmit.Ldc_I4(20);
-    ILEmit.Ldc_I4(10);
-    label = IL.DefineLabel();
-    IL.MarkLabel(label);
-    ILEmit.Br(label);
-    ILEmit.Call(
-        MethodRef.Create(typeof(C), "Add", typeof(int), false)
-            .WithParameter(typeof(int))
-            .WithParameter(typeof(int))
-    );
-    
-    return IL.Return<int>();
+    Assembly.LoadFile(Path.GetFullPath("newasm.dll")).GetTypes()
+        .SelectMany(t => t.GetMethods(BindingFlags.NonPublic | BindingFlags.Static))
+        .Single(m => m.Name.Contains("ThrowAny")).MakeGenericMethod(typeof(string))
+        .CreateDelegate<Action<string>>()("test");
+}
+catch (Exception e)
+{
+    Console.WriteLine($"lmao: {e}");
+}
+catch
+{
+    Console.WriteLine("lol");
 }
 
-struct S
+static void ThrowAny<T>(T t)
 {
-    public S()
-    {
-    }
-
-    public void M()
-    {
-    }
-}
-
-class C
-{
-    public static int Add(int a, int b) => a + b;
+    ILEmit.Ldarg(nameof(t));
+    ILEmit.Throw();
 }

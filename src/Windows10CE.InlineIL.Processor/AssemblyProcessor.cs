@@ -12,27 +12,6 @@ namespace Windows10CE.InlineIL.Processor;
 
 public static class AssemblyProcessor
 {
-    private abstract record UserData
-    {
-        public bool ShouldRemove { get; init; }
-
-        public sealed record String(string Value) : UserData;
-
-        public sealed record Int32(int Value) : UserData;
-        
-        public sealed record ConstructedType(TypeSignature Signature) : UserData;
-
-        public sealed record ConstructedMethod(
-            TypeReference OwningType,
-            string Name,
-            TypeSignature ReturnType,
-            CallingConventionAttributes Attributes,
-            ImmutableList<TypeSignature> ParameterTypes
-        ) : UserData;
-        
-        
-    }
-    
     public static void Process(string inputPath, IEnumerable<string> allReferences, string outputPath)
     {
         var asm = AssemblyDefinition.FromFile(inputPath);
@@ -45,8 +24,8 @@ public static class AssemblyProcessor
             DefaultTypeAccessPurity = true
         };
 
-        var file = File.Open(outputPath, FileMode.Create, FileAccess.Write);
-        using var writer = new StreamWriter(file);
+        using var file = File.Open(outputPath, FileMode.Create, FileAccess.Write);
+        //using var writer = new StreamWriter(file);
         
         foreach (var method in module.EnumerateTableMembers<MethodDefinition>(TableIndex.Method))
         {
@@ -62,21 +41,38 @@ public static class AssemblyProcessor
                 continue;
             }
 
-            var flowGraph = body.ConstructSymbolicFlowGraph(out var dataGraph).Lift(purityClassifier);
+            var compilation = body.ConstructSymbolicFlowGraph(out var dataGraph).Lift(purityClassifier).ToCompilationUnit();
             var offsetMap = dataGraph.Nodes.CreateOffsetMap();
 
-            foreach (var statement in flowGraph.Nodes.SelectMany(node => node.Contents.Instructions))
+            var methodState = new MethodState()
             {
-                
+                Compilation = compilation,
+                DataFlowGraph = dataGraph,
+                Method = method,
+                OffsetMap = offsetMap
+            };
+
+            compilation.Accept(InlineILAstVisitor.Instance, methodState);
+
+            var instructions = body.Instructions;
+
+            for (int i = instructions.Count - 1; i >= 0; i--)
+            {
+                var instruction = instructions[i];
+                if (methodState.ReplacementMap.TryGetValue(instruction, out var replacement))
+                {
+                    instructions.RemoveAt(i);
+                    if (replacement is not null)
+                    {
+                        instructions.Insert(i, replacement);
+                    }
+                }
             }
-            
-            
-            
-            dataGraph.ToDotGraph(writer);
         }
+        module.Write(file);
     }
     
-    private static bool IsInlineILCommand(CilInstruction instruction)
+    internal static bool IsInlineILCommand(CilInstruction instruction)
     {
         var scope = instruction.Operand switch
         {

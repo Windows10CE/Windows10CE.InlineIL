@@ -7,4 +7,10 @@ public static class ILEmit
     public static void Call(MethodRef method) { }
     
     public static void Br(InlineLabel label) { }
+
+    public static void Throw() { }
+
+    public static void Ldarg(string argName) { }
+    
+    public static void Ret() { }
 }
