@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using System.Data;
+using System.Diagnostics;
 using AsmResolver.DotNet;
 using AsmResolver.PE.DotNet.Cil;
 using Echo.Ast;
@@ -60,6 +61,13 @@ public class InlineILAstVisitor : IAstNodeVisitor<CilInstruction, MethodState>
     public void Visit(InstructionExpression<CilInstruction> expression, MethodState state)
     {
         if (expression.UserData is not null) return;
+
+        if (state.IsInILExpression)
+        {
+            HandleInlineExpression(expression, state);
+            return;
+        }
+
         if (!state.IsInILExpression && !AssemblyProcessor.IsInlineILCommand(expression.Instruction))
         {
             return;
@@ -91,6 +99,46 @@ public class InlineILAstVisitor : IAstNodeVisitor<CilInstruction, MethodState>
                 break;
         }
         state.IsInILExpression = oldFlag;
+    }
+
+    private void HandleInlineExpression(InstructionExpression<CilInstruction> expression, MethodState state)
+    {
+        state.ReplacementMap[expression.Instruction] = null;
+        switch (expression.Instruction.OpCode.Code)
+        {
+            case CilCode.Call:
+            case CilCode.Callvirt:
+                var method = (IMethodDefOrRef)expression.Instruction.Operand!;
+                switch (method.Name)
+                {
+                    case "MakePointerType":
+                        {
+                            expression.Arguments[0].Accept(this, state);
+                            var type = (UserData.ConstructedType)expression.UserData!;
+                            expression.UserData = new UserData.ConstructedType(type.Signature.MakePointerType());
+                            break;
+                        }
+                    case "op_Implicit":
+                        expression.Arguments[0].Accept(this, state);
+                        expression.UserData = expression.Arguments[0].UserData;
+                        break;
+                    case "GetTypeFromHandle":
+                        {
+                            expression.Arguments[0].Accept(this, state);
+                            var metadata = (UserData.MetadataMember)expression.Arguments[0].UserData!;
+                            var type = (ITypeDescriptor)metadata.Member;
+                            expression.UserData = new UserData.ConstructedType(type.ToTypeSignature());
+                            break;
+                        }
+                }
+                break;
+            case CilCode.Ldstr:
+                expression.UserData = new UserData.String((string)expression.Instruction.Operand!);
+                break;
+            case CilCode.Ldtoken:
+                expression.UserData = new UserData.MetadataMember((IMetadataMember)expression.Instruction.Operand!);
+                break;
+        }
     }
 
     public void Visit(VariableExpression<CilInstruction> expression, MethodState state)

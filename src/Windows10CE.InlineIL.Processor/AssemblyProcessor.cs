@@ -1,11 +1,8 @@
-﻿using System.Collections.Immutable;
-using AsmResolver.DotNet;
-using AsmResolver.DotNet.Signatures;
+﻿using AsmResolver.DotNet;
 using AsmResolver.PE.DotNet.Cil;
 using AsmResolver.PE.DotNet.Metadata.Tables;
 using Echo;
 using Echo.Ast.Construction;
-using Echo.ControlFlow.Serialization.Blocks;
 using Echo.Platforms.AsmResolver;
 
 namespace Windows10CE.InlineIL.Processor;
@@ -40,6 +37,8 @@ public static class AssemblyProcessor
             {
                 continue;
             }
+
+            body.Instructions.ExpandMacros();
 
             var compilation = body.ConstructSymbolicFlowGraph(out var dataGraph).Lift(purityClassifier).ToCompilationUnit();
             var offsetMap = dataGraph.Nodes.CreateOffsetMap();
@@ -76,7 +75,6 @@ public static class AssemblyProcessor
     {
         var scope = instruction.Operand switch
         {
-            TypeSpecification spec => spec.Scope,
             ITypeDescriptor td => td.Scope,
             IFieldDescriptor fd => fd.DeclaringType?.Scope,
             IMethodDescriptor md => md.DeclaringType?.Scope,
