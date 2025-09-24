@@ -1,28 +1,26 @@
 ﻿using System.Reflection;
-using System.Runtime.CompilerServices;
 using Windows10CE.InlineIL.Processor;
 using Windows10CE.InlineIL;
 
 AssemblyProcessor.Process(Assembly.GetExecutingAssembly().Location, [], "newasm.dll");
 
-try
-{
-    Assembly.LoadFile(Path.GetFullPath("newasm.dll")).GetTypes()
-        .SelectMany(t => t.GetMethods(BindingFlags.NonPublic | BindingFlags.Static))
-        .Single(m => m.Name.Contains("ThrowAny")).MakeGenericMethod(typeof(string))
-        .CreateDelegate<Action<string>>()("test");
-}
-catch (Exception e)
-{
-    Console.WriteLine($"lmao: {e}");
-}
-catch
-{
-    Console.WriteLine("lol");
-}
+int a = 5;
+var b = int.Parse(Console.ReadLine()!);
 
-static void ThrowAny<T>(T t)
+ILEmit.Ldloca(ref a);
+IL.Push(b);
+ILEmit.Call(
+    MethodRef.Create(typeof(C), "TestCall", typeof(void), CallingConventionAttributes.Default)
+        .WithParameter(typeof(int).MakeByRefType())
+        .WithParameter(typeof(int))
+);
+
+Console.WriteLine(a);
+
+static class C
 {
-    ILEmit.Ldarg(nameof(t));
-    ILEmit.Throw();
+    public static void TestCall(ref int test, int value)
+    {
+        test += value;
+    }
 }

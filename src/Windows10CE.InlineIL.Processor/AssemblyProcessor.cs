@@ -11,8 +11,7 @@ public static class AssemblyProcessor
 {
     public static void Process(string inputPath, IEnumerable<string> allReferences, string outputPath)
     {
-        var asm = AssemblyDefinition.FromFile(inputPath);
-        var module = asm.ManifestModule ?? throw new NotSupportedException("how did you even do this");
+        var module = ModuleDefinition.FromFile(inputPath);
 
         var purityClassifier = new CilPurityClassifier
         {
@@ -65,6 +64,17 @@ public static class AssemblyProcessor
                     {
                         instructions.Insert(i, replacement);
                     }
+                }
+            }
+
+            instructions.OptimizeMacros();
+
+            for (int i = body.LocalVariables.Count - 1; i >= 0; i--)
+            {
+                var local = body.LocalVariables[i];
+                if (local.VariableType.Scope?.Name == "Windows10CE.InlineIL")
+                {
+                    body.LocalVariables.RemoveAt(i);
                 }
             }
         }
