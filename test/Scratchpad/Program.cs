@@ -1,26 +1,37 @@
-﻿using System.Reflection;
-using Windows10CE.InlineIL.Processor;
-using Windows10CE.InlineIL;
+﻿using Windows10CE.InlineIL;
 
-AssemblyProcessor.Process(Assembly.GetExecutingAssembly().Location, [], "newasm.dll");
-
-int a = 5;
-var b = int.Parse(Console.ReadLine()!);
-
-ILEmit.Ldloca(ref a);
-IL.Push(b);
-ILEmit.Call(
-    MethodRef.Create(typeof(C), "TestCall", typeof(void), CallingConventionAttributes.Default)
-        .WithParameter(typeof(int).MakeByRefType())
-        .WithParameter(typeof(int))
-);
-
-Console.WriteLine(a);
-
-static class C
+var dict = new Dictionary<string, int>
 {
-    public static void TestCall(ref int test, int value)
-    {
-        test += value;
-    }
-}
+    ["abc"] = 5,
+};
+nint ptr = 0;
+
+ILEmit.Ldloc(ref dict);
+ILEmit.Ldvirtftn(
+    MethodRef.Create(
+        typeof(Dictionary<string, int>),
+        "FindValue",
+        TypeRef.GenericTypeParam(1).MakeByRefType(),
+        CallingConventionAttributes.HasThis
+    )
+    .WithParameter(TypeRef.GenericTypeParam(0))
+);
+ILEmit.Stloc(ref ptr);
+ILEmit.Ldloc(ref dict);
+ILEmit.Ldstr("abc");
+ILEmit.Ldloc(ref ptr);
+ILEmit.Calli(
+    MethodSig.Create(
+        typeof(int).MakeByRefType(),
+        CallingConventionAttributes.HasThis | CallingConventionAttributes.ExplicitThis
+    )
+    .WithParameter(typeof(Dictionary<string, int>))
+    .WithParameter(typeof(string))
+);
+ILEmit.Dup();
+ILEmit.Ldind_I4();
+ILEmit.Ldc_I4(10);
+ILEmit.Add();
+ILEmit.Stind_I4();
+
+Console.WriteLine(dict["abc"]);

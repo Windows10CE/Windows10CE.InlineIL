@@ -35,6 +35,15 @@ internal abstract record UserData
         }
     }
 
+    public sealed record ConstructedMethodSignature(
+        TypeSignature ReturnType,
+        CallingConventionAttributes Attributes,
+        ImmutableList<TypeSignature> ParameterTypes
+    ) : UserData
+    {
+        public StandAloneSignature ToSignature() => new MethodSignature(Attributes, ReturnType, ParameterTypes).MakeStandAloneSignature();
+    }
+
     public sealed record LocalReference(CilLocalVariable Variable) : UserData;
 
     public sealed record ParameterReference(Parameter Parameter) : UserData;

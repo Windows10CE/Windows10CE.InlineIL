@@ -9,19 +9,23 @@ namespace Windows10CE.InlineIL.Processor;
 
 public static class AssemblyProcessor
 {
-    public static void Process(string inputPath, IEnumerable<string> allReferences, string outputPath)
+    public static void Process(string inputPath, IEnumerable<string> allReferences, string outputPath, string targetFramework)
     {
-        var module = ModuleDefinition.FromFile(inputPath);
+        var resolver = new PathAssemblyResolver([inputPath, ..allReferences], targetFramework);
+
+        var asm = AssemblyDefinition.FromFile(inputPath, resolver.ReaderParameters);
+        resolver.AddToCache(asm, asm);
+
+        var module = asm.ManifestModule!;
 
         var purityClassifier = new CilPurityClassifier
         {
             DefaultMethodAccessPurity = true,
             DefaultMethodCallPurity = Trilean.Unknown,
-            DefaultTypeAccessPurity = true
+            DefaultTypeAccessPurity = true,
         };
 
         using var file = File.Open(outputPath, FileMode.Create, FileAccess.Write);
-        //using var writer = new StreamWriter(file);
         
         foreach (var method in module.EnumerateTableMembers<MethodDefinition>(TableIndex.Method))
         {
@@ -42,12 +46,12 @@ public static class AssemblyProcessor
             var compilation = body.ConstructSymbolicFlowGraph(out var dataGraph).Lift(purityClassifier).ToCompilationUnit();
             var offsetMap = dataGraph.Nodes.CreateOffsetMap();
 
-            var methodState = new MethodState()
+            var methodState = new MethodState
             {
                 Compilation = compilation,
                 DataFlowGraph = dataGraph,
                 Method = method,
-                OffsetMap = offsetMap
+                OffsetMap = offsetMap,
             };
 
             compilation.Accept(InlineILAstVisitor.Instance, methodState);

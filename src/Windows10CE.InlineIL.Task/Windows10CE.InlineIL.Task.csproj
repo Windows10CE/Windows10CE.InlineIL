@@ -2,6 +2,12 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
+  
+  <ItemGroup>
+    <ProjectReference Include="../Windows10CE.InlineIL.Processor/Windows10CE.InlineIL.Processor.csproj" />
+    <PackageReference Include="Microsoft.Build.Utilities.Core" />
+  </ItemGroup>
 
 </Project>

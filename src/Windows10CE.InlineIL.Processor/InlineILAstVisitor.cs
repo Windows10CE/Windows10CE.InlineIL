@@ -141,6 +141,9 @@ public class InlineILAstVisitor : IAstNodeVisitor<CilInstruction, MethodState>
                         case CilOperandType.InlineMethod:
                             operand = GetUserData<UserData.ConstructedMethod>(expression.Arguments[0], state).ToMethodDescriptor();
                             break;
+                        case CilOperandType.InlineSig:
+                            operand = GetUserData<UserData.ConstructedMethodSignature>(expression.Arguments[0], state).ToSignature();
+                            break;
                     }
                     state.ReplacementMap[expression.Instruction] = new CilInstruction(opcode, operand);
                 }
@@ -164,6 +167,7 @@ public class InlineILAstVisitor : IAstNodeVisitor<CilInstruction, MethodState>
                 switch (method.Name)
                 {
                     case "Create" when method.DeclaringType!.Name == "MethodRef":
+                    {
                         expression.UserData = new UserData.ConstructedMethod(
                             GetUserData<UserData.ConstructedType>(expression.Arguments[0], state).Signature.ToTypeDefOrRef(),
                             GetUserData<UserData.String>(expression.Arguments[1], state).Value,
@@ -172,32 +176,63 @@ public class InlineILAstVisitor : IAstNodeVisitor<CilInstruction, MethodState>
                             ImmutableList<TypeSignature>.Empty
                         );
                         break;
-                    case "WithParameter":
-                        var originalMethod = GetUserData<UserData.ConstructedMethod>(expression.Arguments[0], state);
-                        var newParam = GetUserData<UserData.ConstructedType>(expression.Arguments[1], state).Signature;
-                        expression.UserData = originalMethod with { ParameterTypes = originalMethod.ParameterTypes.Add(newParam) };
+                    }
+                    case "Create" when method.DeclaringType!.Name == "MethodSig":
+                    {
+                        expression.UserData = new UserData.ConstructedMethodSignature(
+                            GetUserData<UserData.ConstructedType>(expression.Arguments[0], state).Signature,
+                            (CallingConventionAttributes)GetUserData<UserData.Int32>(expression.Arguments[1], state).Value,
+                            ImmutableList<TypeSignature>.Empty
+                        );
                         break;
+                    }
+                    case "GenericTypeParam":
+                    {
+                        var index = GetUserData<UserData.Int32>(expression.Arguments[0], state).Value;
+                        expression.UserData = new UserData.ConstructedType(new GenericParameterSignature(state.Method.Module, GenericParameterType.Type, index));
+                        break;
+                    }
+                    case "GenericMethodParam":
+                    {
+                        var index = GetUserData<UserData.Int32>(expression.Arguments[0], state).Value;
+                        expression.UserData = new UserData.ConstructedType(new GenericParameterSignature(state.Method.Module, GenericParameterType.Method, index));
+                        break;
+                    }
+                    case "WithParameter":
+                    {
+                        var originalMethod = GetUserData<UserData>(expression.Arguments[0], state);
+                        var newParam = GetUserData<UserData.ConstructedType>(expression.Arguments[1], state).Signature;
+                        expression.UserData = originalMethod switch
+                        {
+                            UserData.ConstructedMethod cm => cm with { ParameterTypes = cm.ParameterTypes.Add(newParam) },
+                            UserData.ConstructedMethodSignature cms => cms with { ParameterTypes = cms.ParameterTypes.Add(newParam) },
+                            _ => throw new NotSupportedException(),
+                        };
+                        break;
+                    }
                     case "MakePointerType":
-                        {
-                            var type = GetUserData<UserData.ConstructedType>(expression.Arguments[0], state).Signature;
-                            expression.UserData = new UserData.ConstructedType(type.MakePointerType());
-                            break;
-                        }
+                    {
+                        var type = GetUserData<UserData.ConstructedType>(expression.Arguments[0], state).Signature;
+                        expression.UserData = new UserData.ConstructedType(type.MakePointerType());
+                        break;
+                    }
                     case "MakeByRefType":
-                        {
-                            var type = GetUserData<UserData.ConstructedType>(expression.Arguments[0], state).Signature;
-                            expression.UserData = new UserData.ConstructedType(type.MakeByReferenceType());
-                            break;
-                        }
+                    {
+                        var type = GetUserData<UserData.ConstructedType>(expression.Arguments[0], state).Signature;
+                        expression.UserData = new UserData.ConstructedType(type.MakeByReferenceType());
+                        break;
+                    }
                     case "op_Implicit":
+                    {
                         expression.UserData = GetUserData<UserData>(expression.Arguments[0], state);
                         break;
+                    }
                     case "GetTypeFromHandle":
-                        {
-                            var type = (ITypeDescriptor)GetUserData<UserData.MetadataMember>(expression.Arguments[0], state).Member;
-                            expression.UserData = new UserData.ConstructedType(type.ToTypeSignature());
-                            break;
-                        }
+                    {
+                        var type = (ITypeDescriptor)GetUserData<UserData.MetadataMember>(expression.Arguments[0], state).Member;
+                        expression.UserData = new UserData.ConstructedType(type.ToTypeSignature());
+                        break;
+                    }
                 }
                 break;
             case CilCode.Ldstr:

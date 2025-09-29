@@ -1,0 +1,12 @@
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.Build.Utilities.Core" Version="17.14.8" />
+    <PackageVersion Include="Echo.Ast" Version="1.0.0-master.353" />
+    <PackageVersion Include="Echo.Platforms.AsmResolver" Version="1.0.0-master.353" />
+    
+    <GlobalPackageReference Include="PolySharp" Version="1.15.0" />
+  </ItemGroup>
+</Project>

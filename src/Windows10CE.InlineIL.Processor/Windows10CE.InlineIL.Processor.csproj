@@ -5,10 +5,8 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Echo.Ast" Version="1.0.0-master.353" />
-        <PackageReference Include="Echo.Platforms.AsmResolver" Version="1.0.0-master.353" />
-        
-        <PackageReference Include="PolySharp" Version="1.15.0" IncludeAssets="build; buildTransitive; analyzers" PrivateAssets="all" />
+        <PackageReference Include="Echo.Ast" />
+        <PackageReference Include="Echo.Platforms.AsmResolver" />
     </ItemGroup>
 
 </Project>
