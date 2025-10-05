@@ -7,4 +7,6 @@ public sealed class MethodRef
     public static MethodRef Create(TypeRef owner, string name, TypeRef returnType, CallingConventionAttributes attributes) => throw new NotSupportedException();
 
     public MethodRef WithParameter(TypeRef type) => throw new NotSupportedException();
+
+    public MethodRef WithGenericArg(TypeRef type) => throw new NotSupportedException();
 }

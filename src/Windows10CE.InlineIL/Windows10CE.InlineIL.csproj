@@ -1,8 +1,20 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>netstandard2.0;net9.0</TargetFrameworks>
+    <TargetFrameworks>net20;netstandard1.0;netstandard2.0;netcoreapp1.0;netcoreapp2.0;net9.0</TargetFrameworks>
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ImplicitUsings>false</ImplicitUsings>
+    
+    <CheckNotRecommendedTargetFramework>false</CheckNotRecommendedTargetFramework>
   </PropertyGroup>
+  
+  <ItemGroup>
+    <Using Include="System" />
+  </ItemGroup>
 
+  <ItemGroup>
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-7mfr-774f-w5r9" Visible="false" />
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-8884-xcr4-r68p" Visible="false" />
+  </ItemGroup>
+  
 </Project>

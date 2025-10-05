@@ -1,31 +1,58 @@
 ﻿using AsmResolver.DotNet;
+using AsmResolver.DotNet.Serialized;
+using AsmResolver.IO;
+using AsmResolver.PE;
 using AsmResolver.PE.DotNet.Cil;
+using AsmResolver.PE.DotNet.Metadata;
 using AsmResolver.PE.DotNet.Metadata.Tables;
 using Echo;
 using Echo.Ast.Construction;
 using Echo.Platforms.AsmResolver;
+using Windows10CE.InlineIL.PortablePdb;
 
 namespace Windows10CE.InlineIL.Processor;
 
 public static class AssemblyProcessor
 {
-    public static void Process(string inputPath, IEnumerable<string> allReferences, string outputPath, string targetFramework)
+    public static void Process(string inputPath, IEnumerable<string> allReferences, string outputPath, string targetFramework, string debugType, string? pdbPath)
     {
         var resolver = new PathAssemblyResolver([inputPath, ..allReferences], targetFramework);
 
-        var asm = AssemblyDefinition.FromFile(inputPath, resolver.ReaderParameters);
+        var asmImage = PEImage.FromFile(inputPath);
+
+        pdbPath ??= Path.ChangeExtension(inputPath, ".pdb");
+
+        var pdbMetadata = debugType switch
+        {
+            "portable" => MetadataDirectory.FromFile(pdbPath),
+            "embedded" => asmImage.DotNetDirectory?.Metadata,
+            "full" or "pdbonly" => null, // TODO: emit warning
+            _ => null,
+        };
+
+        var module = new SerializedModuleDefinition(asmImage, resolver.ReaderParameters);
+        module.ReaderContext.PdbDirectory = pdbMetadata;
+
+        var asm = module.Assembly!;
         resolver.AddToCache(asm, asm);
 
-        var module = asm.ManifestModule!;
+        Process(asm.ManifestModule!);
+        asm.Write(outputPath);
+        if (debugType == "portable")
+        {
+            using var pdbFile = File.Open(pdbPath, FileMode.Create, FileAccess.Write);
+            pdbMetadata!.Write(new BinaryStreamWriter(pdbFile));
+        }
+    }
 
+    public static void Process(ModuleDefinition module)
+    {
         var purityClassifier = new CilPurityClassifier
         {
             DefaultMethodAccessPurity = true,
             DefaultMethodCallPurity = Trilean.Unknown,
             DefaultTypeAccessPurity = true,
         };
-
-        using var file = File.Open(outputPath, FileMode.Create, FileAccess.Write);
         
         foreach (var method in module.EnumerateTableMembers<MethodDefinition>(TableIndex.Method))
         {
@@ -41,26 +68,34 @@ public static class AssemblyProcessor
                 continue;
             }
 
-            body.Instructions.ExpandMacros();
+            var instructions = body.Instructions;
 
-            var compilation = body.ConstructSymbolicFlowGraph(out var dataGraph).Lift(purityClassifier).ToCompilationUnit();
-            var offsetMap = dataGraph.Nodes.CreateOffsetMap();
+            instructions.ExpandMacros();
+
+            var compilation = body.ConstructStaticFlowGraph().Lift(purityClassifier).ToCompilationUnit();
 
             var methodState = new MethodState
             {
                 Compilation = compilation,
-                DataFlowGraph = dataGraph,
                 Method = method,
-                OffsetMap = offsetMap,
             };
 
             compilation.Accept(InlineILAstVisitor.Instance, methodState);
 
-            var instructions = body.Instructions;
-
             for (int i = instructions.Count - 1; i >= 0; i--)
             {
                 var instruction = instructions[i];
+                if (methodState.LabelFixups.TryGetValue(instruction, out var label))
+                {
+                    if (i == instructions.Count - 1)
+                    {
+                        label.CilLabel = instructions.EndLabel;
+                    }
+                    else
+                    {
+                        label.CilLabel = new CilInstructionLabel(instructions[i + 1]);
+                    }
+                }
                 if (methodState.ReplacementMap.TryGetValue(instruction, out var replacement))
                 {
                     instructions.RemoveAt(i);
@@ -71,8 +106,6 @@ public static class AssemblyProcessor
                 }
             }
 
-            instructions.OptimizeMacros();
-
             for (int i = body.LocalVariables.Count - 1; i >= 0; i--)
             {
                 var local = body.LocalVariables[i];
@@ -81,8 +114,9 @@ public static class AssemblyProcessor
                     body.LocalVariables.RemoveAt(i);
                 }
             }
+
+            instructions.OptimizeMacros();
         }
-        module.Write(file);
     }
     
     internal static bool IsInlineILCommand(CilInstruction instruction)
@@ -92,7 +126,7 @@ public static class AssemblyProcessor
             ITypeDescriptor td => td.Scope,
             IFieldDescriptor fd => fd.DeclaringType?.Scope,
             IMethodDescriptor md => md.DeclaringType?.Scope,
-            _ => null
+            _ => null,
         };
 
         return scope?.Name == "Windows10CE.InlineIL";

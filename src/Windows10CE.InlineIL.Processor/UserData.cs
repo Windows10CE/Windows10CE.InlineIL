@@ -1,8 +1,10 @@
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using AsmResolver.DotNet;
 using AsmResolver.DotNet.Code.Cil;
 using AsmResolver.DotNet.Collections;
 using AsmResolver.DotNet.Signatures;
+using AsmResolver.PE.DotNet.Cil;
 
 namespace Windows10CE.InlineIL.Processor;
 
@@ -26,12 +28,17 @@ internal abstract record UserData
         string Name,
         TypeSignature ReturnType,
         CallingConventionAttributes Attributes,
-        ImmutableList<TypeSignature> ParameterTypes
+        ImmutableList<TypeSignature> ParameterTypes,
+        ImmutableList<TypeSignature> GenericArguments
     ) : UserData
     {
         public IMethodDescriptor ToMethodDescriptor()
         {
-            return OwningType.CreateMemberReference(Name, new MethodSignature(Attributes, ReturnType, ParameterTypes));
+            var method = OwningType.CreateMemberReference(Name, new MethodSignature(Attributes, ReturnType, ParameterTypes)
+            {
+                GenericParameterCount = GenericArguments.Count,
+            });
+            return GenericArguments is [] ? method : method.MakeGenericInstanceMethod(GenericArguments.ToArray());
         }
     }
 
@@ -44,7 +51,33 @@ internal abstract record UserData
         public StandAloneSignature ToSignature() => new MethodSignature(Attributes, ReturnType, ParameterTypes).MakeStandAloneSignature();
     }
 
+    public sealed record ConstructedField(IMemberRefParent OwningType, string Name, TypeSignature FieldType, CallingConventionAttributes Attributes) : UserData
+    {
+        public IFieldDescriptor ToFieldDescriptor() => OwningType.CreateMemberReference(Name, new FieldSignature(Attributes, FieldType));
+    }
+
     public sealed record LocalReference(CilLocalVariable Variable) : UserData;
 
     public sealed record ParameterReference(Parameter Parameter) : UserData;
+
+    public sealed record Label(CilLocalVariable LabelVar) : UserData, ICilLabel
+    {
+        [DisallowNull]
+        public ICilLabel? CilLabel
+        { 
+            private get;
+            set
+            {
+                if (field is not null)
+                {
+                    throw new InvalidOperationException("CilLabel may only be set once");
+                }
+                field = value;
+            } 
+        }
+
+        public int Offset => CilLabel?.Offset ?? throw new InvalidOperationException("Did not fill in a label");
+        
+        public bool Equals(ICilLabel other) => CilLabel?.Equals(other) ?? false;
+    }
 }

@@ -20,10 +20,74 @@ public static class IL
 
     public static unsafe void Push(void* ptr) { }
 
-    public static T Return<T>() => throw new InvalidOperationException();
+    public static T Return<T>()
+#if NET9_0_OR_GREATER
+        where T : allows ref struct
+#endif
+        => throw new InvalidOperationException();
+    public static ref T ReturnRef<T>()
+#if NET9_0_OR_GREATER
+        where T : allows ref struct
+#endif
+        => throw new InvalidOperationException();
+    
+    public static unsafe void* ReturnPointer() => throw new InvalidOperationException();
+    
+    public static void Ldc_I4(int i) { }
 
-    public static InlineLabel DefineLabel() => throw new InvalidOperationException();
+    public static void Call(MethodRef method) { }
+    public static void Callvirt(MethodRef method) { }
+    public static void Calli(MethodSig signature) { }
 
-    public static void MarkLabel(InlineLabel label) => throw new InvalidOperationException();
-    public static InlineLabel DefineAndMarkLabel() => throw new InvalidOperationException();
+    public static void Br(InlineLabel label) { }
+    
+    public static void Ldloc<T>(scoped ref readonly T local)
+#if NET9_0_OR_GREATER
+        where T : allows ref struct
+#endif
+    { }
+
+    public static void Ldloca<T>(scoped ref readonly T local)
+#if NET9_0_OR_GREATER
+        where T : allows ref struct
+#endif
+    { }
+
+    public static void Ldarga<T>(scoped ref readonly T arg)
+#if NET9_0_OR_GREATER
+        where T : allows ref struct
+#endif
+    { }
+    
+    public static void Stloc<T>(scoped ref readonly T local)
+#if NET9_0_OR_GREATER
+        where T : allows ref struct
+#endif
+    { }
+
+    public static void Starg<T>(scoped ref readonly T arg)
+#if NET9_0_OR_GREATER
+        where T : allows ref struct
+#endif
+    { }
+
+    public static void Throw() { }
+
+    public static void Ldarg(string argName) { }
+    
+    public static void Ldfld(FieldRef field) { }
+
+    public static void Ldstr(string s) { }
+    
+    public static void Ldind_I4() { }
+
+    public static void Ldvirtftn(MethodRef method) { }
+
+    public static void Stind_I4() { }
+
+    public static void Add() { }
+
+    public static void Dup() { }
+
+    public static void Ret() { }
 }

@@ -9,7 +9,7 @@ using Echo.Ast;
 
 namespace Windows10CE.InlineIL.Processor;
 
-public class InlineILAstVisitor : IAstNodeVisitor<CilInstruction, MethodState>
+internal class InlineILAstVisitor : IAstNodeVisitor<CilInstruction, MethodState>
 {
     public static InlineILAstVisitor Instance { get; } = new();
     
@@ -141,15 +141,33 @@ public class InlineILAstVisitor : IAstNodeVisitor<CilInstruction, MethodState>
                         case CilOperandType.InlineMethod:
                             operand = GetUserData<UserData.ConstructedMethod>(expression.Arguments[0], state).ToMethodDescriptor();
                             break;
+                        case CilOperandType.InlineField:
+                            operand = GetUserData<UserData.ConstructedField>(expression.Arguments[0], state).ToFieldDescriptor();
+                            break;
                         case CilOperandType.InlineSig:
                             operand = GetUserData<UserData.ConstructedMethodSignature>(expression.Arguments[0], state).ToSignature();
+                            break;
+                        case CilOperandType.InlineBrTarget:
+                            operand = GetUserData<UserData>(expression.Arguments[0], state) switch
+                            {
+                                UserData.LocalReference lr => GetLabelForLocal(lr.Variable, state),
+                                UserData.Label label => label,
+                                _ => throw new InvalidOperationException(),
+                            };
                             break;
                     }
                     state.ReplacementMap[expression.Instruction] = new CilInstruction(opcode, operand);
                 }
-                else if (method.Name == "Push")
+                else if (method.Name!.Value is "Push" or "Return" or "ReturnRef" or "ReturnPointer")
                 {
                     state.ReplacementMap[expression.Instruction] = null;
+                }
+                else if (method.Name!.Value is "Mark" or "DefineAndMark")
+                {
+                    var local = GetUserData<UserData.LocalReference>(expression.Arguments[0], state).Variable;
+                    var label = GetLabelForLocal(local, state);
+                    state.ReplacementMap[expression.Instruction] = null;
+                    state.LabelFixups[expression.Instruction] = label;
                 }
                 break;
         }
@@ -173,6 +191,7 @@ public class InlineILAstVisitor : IAstNodeVisitor<CilInstruction, MethodState>
                             GetUserData<UserData.String>(expression.Arguments[1], state).Value,
                             GetUserData<UserData.ConstructedType>(expression.Arguments[2], state).Signature,
                             (CallingConventionAttributes)GetUserData<UserData.Int32>(expression.Arguments[3], state).Value,
+                            ImmutableList<TypeSignature>.Empty,
                             ImmutableList<TypeSignature>.Empty
                         );
                         break;
@@ -183,6 +202,16 @@ public class InlineILAstVisitor : IAstNodeVisitor<CilInstruction, MethodState>
                             GetUserData<UserData.ConstructedType>(expression.Arguments[0], state).Signature,
                             (CallingConventionAttributes)GetUserData<UserData.Int32>(expression.Arguments[1], state).Value,
                             ImmutableList<TypeSignature>.Empty
+                        );
+                        break;
+                    }
+                    case "Create" when method.DeclaringType!.Name == "FieldRef":
+                    {
+                        expression.UserData = new UserData.ConstructedField(
+                            GetUserData<UserData.ConstructedType>(expression.Arguments[0], state).Signature.ToTypeDefOrRef(),
+                            GetUserData<UserData.String>(expression.Arguments[1], state).Value,
+                            GetUserData<UserData.ConstructedType>(expression.Arguments[2], state).Signature,
+                            (CallingConventionAttributes)GetUserData<UserData.Int32>(expression.Arguments[3], state).Value
                         );
                         break;
                     }
@@ -210,6 +239,13 @@ public class InlineILAstVisitor : IAstNodeVisitor<CilInstruction, MethodState>
                         };
                         break;
                     }
+                    case "WithGenericArg":
+                    {
+                        var originalMethod = GetUserData<UserData.ConstructedMethod>(expression.Arguments[0], state);
+                        var newArg = GetUserData<UserData.ConstructedType>(expression.Arguments[1], state).Signature;
+                        expression.UserData = originalMethod with { GenericArguments = originalMethod.GenericArguments.Add(newArg) };
+                        break;
+                    }
                     case "MakePointerType":
                     {
                         var type = GetUserData<UserData.ConstructedType>(expression.Arguments[0], state).Signature;
@@ -233,6 +269,12 @@ public class InlineILAstVisitor : IAstNodeVisitor<CilInstruction, MethodState>
                         expression.UserData = new UserData.ConstructedType(type.ToTypeSignature());
                         break;
                     }
+                    case "Use":
+                    {
+                        var local = GetUserData<UserData.LocalReference>(expression.Arguments[0], state).Variable;
+                        expression.UserData = GetLabelForLocal(local, state);
+                        break;
+                    }
                 }
                 break;
             case CilCode.Ldstr:
@@ -253,6 +295,9 @@ public class InlineILAstVisitor : IAstNodeVisitor<CilInstruction, MethodState>
             case CilCode.Ldc_R8:
                 expression.UserData = new UserData.Double((double)expression.Instruction.Operand!);
                 break;
+            case CilCode.Ldloc:
+                expression.UserData = new UserData.LocalReference((CilLocalVariable)expression.Instruction.Operand!);
+                break;
             case CilCode.Ldloca:
                 expression.UserData = new UserData.LocalReference((CilLocalVariable)expression.Instruction.Operand!);
                 break;
@@ -260,6 +305,16 @@ public class InlineILAstVisitor : IAstNodeVisitor<CilInstruction, MethodState>
                 expression.UserData = new UserData.ParameterReference((Parameter)expression.Instruction.Operand!);
                 break;
         }
+    }
+
+    private UserData.Label GetLabelForLocal(CilLocalVariable local, MethodState state)
+    {
+        if (!state.Labels.TryGetValue(local, out var label))
+        {
+            state.Labels[local] = label = new UserData.Label(local);
+        }
+
+        return label;
     }
 
     public void Visit(VariableExpression<CilInstruction> expression, MethodState state)

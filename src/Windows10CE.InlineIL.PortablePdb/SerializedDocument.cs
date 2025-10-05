@@ -1,0 +1,62 @@
+using AsmResolver;
+using AsmResolver.DotNet.Serialized;
+using AsmResolver.PE.DotNet.Metadata;
+using AsmResolver.PE.DotNet.Metadata.Tables;
+
+namespace Windows10CE.InlineIL.PortablePdb;
+
+public class SerializedDocument : Document
+{
+    private readonly ModuleReaderContext _context;
+    private readonly DocumentRow _row;
+    
+    public SerializedDocument(ModuleReaderContext context, MetadataToken token, in DocumentRow row) : base(token)
+    {
+        _context = context;
+        _row = row;
+    }
+
+    protected override Utf8String GetName()
+    {
+        var blobStream = _context.PdbBlobStream!;
+        if (!blobStream.TryGetBlobReaderByIndex(_row.Name, out var namePartsReader))
+        {
+            return Utf8String.Empty;
+        }
+
+        var name = new List<byte>();
+
+        var sep = namePartsReader.ReadByte();
+        var hasDoneFirstPart = false;
+        while (namePartsReader.RelativeOffset != namePartsReader.Length)
+        {
+            var partIndex = namePartsReader.ReadCompressedUInt32();
+            if (partIndex == 0 || !blobStream.TryGetBlobReaderByIndex(partIndex, out var partReader))
+            {
+                if (sep != 0 && hasDoneFirstPart)
+                {
+                    name.Add(sep);
+                }
+                hasDoneFirstPart = true;
+                continue;
+            }
+
+            if (sep != 0 && hasDoneFirstPart)
+            {
+                name.Add(sep);
+            }
+            hasDoneFirstPart = true;
+
+            var part = partReader.ReadToEnd();
+            name.AddRange(part);
+        }
+
+        return new Utf8String(name.ToArray());
+    }
+
+    protected override Guid GetHashAlgorithm() => _context.PdbDirectory!.GetStream<GuidStream>().GetGuidByIndex(_row.HashAlgorithm);
+
+    protected override byte[]? GetHash() => _context.PdbBlobStream!.GetBlobByIndex(_row.Hash);
+
+    protected override Guid GetLanguage() => _context.PdbDirectory!.GetStream<GuidStream>().GetGuidByIndex(_row.Language);
+}

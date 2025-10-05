@@ -1,37 +1,29 @@
-﻿using Windows10CE.InlineIL;
+﻿using System.IO.Compression;
+using AsmResolver;
+using AsmResolver.DotNet.Serialized;
+using AsmResolver.PE;
+using AsmResolver.PE.Debug;
+using AsmResolver.PE.DotNet.Metadata;
+using Windows10CE.InlineIL.PortablePdb;
 
-var dict = new Dictionary<string, int>
-{
-    ["abc"] = 5,
-};
-nint ptr = 0;
+var image = PEImage.FromFile(typeof(C).Assembly.Location);
+var mod = new SerializedModuleDefinition(image, new ModuleReaderParameters());
 
-ILEmit.Ldloc(ref dict);
-ILEmit.Ldvirtftn(
-    MethodRef.Create(
-        typeof(Dictionary<string, int>),
-        "FindValue",
-        TypeRef.GenericTypeParam(1).MakeByRefType(),
-        CallingConventionAttributes.HasThis
-    )
-    .WithParameter(TypeRef.GenericTypeParam(0))
-);
-ILEmit.Stloc(ref ptr);
-ILEmit.Ldloc(ref dict);
-ILEmit.Ldstr("abc");
-ILEmit.Ldloc(ref ptr);
-ILEmit.Calli(
-    MethodSig.Create(
-        typeof(int).MakeByRefType(),
-        CallingConventionAttributes.HasThis | CallingConventionAttributes.ExplicitThis
-    )
-    .WithParameter(typeof(Dictionary<string, int>))
-    .WithParameter(typeof(string))
-);
-ILEmit.Dup();
-ILEmit.Ldind_I4();
-ILEmit.Ldc_I4(10);
-ILEmit.Add();
-ILEmit.Stind_I4();
+ISegment pdbData = image.DebugData.Single(dd => dd.Contents?.Type == (DebugDataType)17).Contents!;
+pdbData = ((CustomDebugDataSegment)pdbData).Contents!;
+var reader = pdbData.ToReference().CreateReader();
 
-Console.WriteLine(dict["abc"]);
+reader.ReadUInt32();
+var uncompressedSize = reader.ReadInt32();
+
+var memoryStream = new MemoryStream(reader.ReadToEnd());
+var compressStream = new DeflateStream(memoryStream, CompressionMode.Decompress);
+
+var bytes = new byte[uncompressedSize];
+compressStream.ReadExactly(bytes);
+
+mod.ReaderContext.PdbDirectory = MetadataDirectory.FromBytes(bytes);
+
+Console.WriteLine(string.Join('\n', mod.ManagedEntryPointMethod!.MethodDebugInformation!.SequencePoints));
+
+class C;
