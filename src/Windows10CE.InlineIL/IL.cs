@@ -52,6 +52,12 @@ public static class IL
         where T : allows ref struct
 #endif
     { }
+    
+    public static void Ldarg<T>(scoped ref readonly T arg)
+#if NET9_0_OR_GREATER
+        where T : allows ref struct
+#endif
+    { }
 
     public static void Ldarga<T>(scoped ref readonly T arg)
 #if NET9_0_OR_GREATER
@@ -90,4 +96,20 @@ public static class IL
     public static void Dup() { }
 
     public static void Ret() { }
+    
+    public static void Conv_I() { }
+    
+    public static void Conv_U() { }
+    
+    public static void Ldtoken(TypeRef tr) { }
+    
+    public static void Newobj(MethodRef ctor) { }
+    
+    public static void Ldftn(MethodRef method) { }
+    
+    public static void Ldnull() { }
+    
+    public static void Ldsfld(FieldRef field) { }
+    
+    public static void Box(TypeRef tr) { }
 }

@@ -1,29 +1,32 @@
-﻿using System.IO.Compression;
-using AsmResolver;
-using AsmResolver.DotNet.Serialized;
-using AsmResolver.PE;
-using AsmResolver.PE.Debug;
-using AsmResolver.PE.DotNet.Metadata;
-using Windows10CE.InlineIL.PortablePdb;
+﻿using System.Runtime.CompilerServices;
+using Windows10CE.InlineIL;
+using static Windows10CE.InlineIL.IL;
 
-var image = PEImage.FromFile(typeof(C).Assembly.Location);
-var mod = new SerializedModuleDefinition(image, new ModuleReaderParameters());
+[assembly: IgnoresAccessChecksTo("System.Private.CoreLib")]
 
-ISegment pdbData = image.DebugData.Single(dd => dd.Contents?.Type == (DebugDataType)17).Contents!;
-pdbData = ((CustomDebugDataSegment)pdbData).Contents!;
-var reader = pdbData.ToReference().CreateReader();
+static class Program
+{
+    static void Main()
+    {
+        Newobj(MethodRef.Create(typeof(B), ".ctor", typeof(void), CallingConventionAttributes.HasThis));
+        Newobj(MethodRef.Create(typeof(A), ".ctor", typeof(void), CallingConventionAttributes.HasThis));
+        Ldvirtftn(MethodRef.Create(typeof(I), "M", typeof(string), CallingConventionAttributes.HasThis));
+        Calli(MethodSig.Create(typeof(string), CallingConventionAttributes.ExplicitThis | CallingConventionAttributes.HasThis).WithParameter(typeof(I)));
+        Call(MethodRef.Create(typeof(Console), "WriteLine", typeof(void), default).WithParameter(typeof(string)));
+    }
+}
 
-reader.ReadUInt32();
-var uncompressedSize = reader.ReadInt32();
+interface I
+{
+    public string M();
+}
 
-var memoryStream = new MemoryStream(reader.ReadToEnd());
-var compressStream = new DeflateStream(memoryStream, CompressionMode.Decompress);
+class A : I
+{
+    public string M() => "A";
+}
 
-var bytes = new byte[uncompressedSize];
-compressStream.ReadExactly(bytes);
-
-mod.ReaderContext.PdbDirectory = MetadataDirectory.FromBytes(bytes);
-
-Console.WriteLine(string.Join('\n', mod.ManagedEntryPointMethod!.MethodDebugInformation!.SequencePoints));
-
-class C;
+class B : I
+{
+    public string M() => "B";
+}

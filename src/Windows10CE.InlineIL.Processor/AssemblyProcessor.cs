@@ -1,48 +1,27 @@
-﻿using AsmResolver.DotNet;
-using AsmResolver.DotNet.Serialized;
-using AsmResolver.IO;
-using AsmResolver.PE;
+﻿using System.Collections.Immutable;
+using AsmResolver.DotNet;
 using AsmResolver.PE.DotNet.Cil;
-using AsmResolver.PE.DotNet.Metadata;
 using AsmResolver.PE.DotNet.Metadata.Tables;
 using Echo;
 using Echo.Ast.Construction;
 using Echo.Platforms.AsmResolver;
-using Windows10CE.InlineIL.PortablePdb;
 
 namespace Windows10CE.InlineIL.Processor;
 
 public static class AssemblyProcessor
 {
-    public static void Process(string inputPath, IEnumerable<string> allReferences, string outputPath, string targetFramework, string debugType, string? pdbPath)
+    public static void Process(string inputPath, ImmutableArray<string> allReferences, string outputPath, string? pdbPath)
     {
-        var resolver = new PathAssemblyResolver([inputPath, ..allReferences], targetFramework);
+        var asm = AssemblyDefinition.FromFile(inputPath, createRuntimeContext: false);
+        var mod = asm.ManifestModule!;
 
-        var asmImage = PEImage.FromFile(inputPath);
+        var context = new RuntimeContext(mod.OriginalTargetRuntime, new PathAssemblyResolver(allReferences));
+        context.AddAssembly(asm);
 
         pdbPath ??= Path.ChangeExtension(inputPath, ".pdb");
 
-        var pdbMetadata = debugType switch
-        {
-            "portable" => MetadataDirectory.FromFile(pdbPath),
-            "embedded" => asmImage.DotNetDirectory?.Metadata,
-            "full" or "pdbonly" => null, // TODO: emit warning
-            _ => null,
-        };
-
-        var module = new SerializedModuleDefinition(asmImage, resolver.ReaderParameters);
-        module.ReaderContext.PdbDirectory = pdbMetadata;
-
-        var asm = module.Assembly!;
-        resolver.AddToCache(asm, asm);
-
-        Process(asm.ManifestModule!);
+        Process(mod);
         asm.Write(outputPath);
-        if (debugType == "portable")
-        {
-            using var pdbFile = File.Open(pdbPath, FileMode.Create, FileAccess.Write);
-            pdbMetadata!.Write(new BinaryStreamWriter(pdbFile));
-        }
     }
 
     public static void Process(ModuleDefinition module)
@@ -78,6 +57,7 @@ public static class AssemblyProcessor
             {
                 Compilation = compilation,
                 Method = method,
+                RuntimeContext = module.RuntimeContext!,
             };
 
             compilation.Accept(InlineILAstVisitor.Instance, methodState);

@@ -10,4 +10,5 @@ public sealed class TypeRef
     public static TypeRef GenericMethodParam(int index) => throw new NotSupportedException();
 
     public TypeRef MakeByRefType() => throw new NotSupportedException();
+    public TypeRef WithGenericArg(TypeRef arg) => throw new NotSupportedException();
 }

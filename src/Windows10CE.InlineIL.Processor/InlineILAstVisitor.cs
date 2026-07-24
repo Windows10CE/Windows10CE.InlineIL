@@ -1,5 +1,6 @@
 ﻿using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Reflection;
 using AsmResolver.DotNet;
 using AsmResolver.DotNet.Code.Cil;
 using AsmResolver.DotNet.Collections;
@@ -60,7 +61,7 @@ internal class InlineILAstVisitor : IAstNodeVisitor<CilInstruction, MethodState>
         clause.Epilogue?.Accept(this, state);
     }
 
-    private TUserData GetUserData<TUserData>(AstNode<CilInstruction> node, MethodState state)
+    private TUserData GetUserData<TUserData>(AstNode<CilInstruction> node, MethodState state) where TUserData : UserData
     {
         if (node.UserData is not UserData)
         {
@@ -104,54 +105,54 @@ internal class InlineILAstVisitor : IAstNodeVisitor<CilInstruction, MethodState>
                         case CilOperandType.InlineNone:
                             break;
                         case CilOperandType.InlineString:
-                            operand = GetUserData<UserData.String>(expression.Arguments[0], state).Value;
+                            operand = GetUserData<StringData>(expression.Arguments[0], state).Value;
                             break;
                         case CilOperandType.InlineI:
-                            operand = GetUserData<UserData.Int32>(expression.Arguments[0], state).Value;
+                            operand = GetUserData<Int32Data>(expression.Arguments[0], state).Value;
                             break;
                         case CilOperandType.InlineI8:
-                            operand = GetUserData<UserData.Int64>(expression.Arguments[0], state).Value;
+                            operand = GetUserData<Int64Data>(expression.Arguments[0], state).Value;
                             break;
                         case CilOperandType.ShortInlineR:
-                            operand = GetUserData<UserData.Single>(expression.Arguments[0], state).Value;
+                            operand = GetUserData<SingleData>(expression.Arguments[0], state).Value;
                             break;
                         case CilOperandType.InlineR:
-                            operand = GetUserData<UserData.Double>(expression.Arguments[0], state).Value;
+                            operand = GetUserData<DoubleData>(expression.Arguments[0], state).Value;
                             break;
                         case CilOperandType.InlineVar:
-                            operand = GetUserData<UserData.LocalReference>(expression.Arguments[0], state).Variable;
+                            operand = GetUserData<LocalReferenceData>(expression.Arguments[0], state).Variable;
                             break;
                         case CilOperandType.InlineArgument:
-                            operand = GetUserData<UserData.ParameterReference>(expression.Arguments[0], state).Parameter;
+                            operand = GetUserData<ParameterReferenceData>(expression.Arguments[0], state).Parameter;
                             break;
                         case CilOperandType.InlineType:
-                            operand = GetUserData<UserData.ConstructedType>(expression.Arguments[0], state).Signature.ToTypeDefOrRef();
+                            operand = GetUserData<ConstructedTypeData>(expression.Arguments[0], state).Signature.ToTypeDefOrRef();
                             break;
                         case CilOperandType.InlineTok:
                             IMetadataMember member = GetUserData<UserData>(expression.Arguments[0], state) switch
                             {
                                 // not sure how this happens but sure
-                                UserData.MetadataMember mm => mm.Member,
-                                UserData.ConstructedType ct => ct.Signature.ToTypeDefOrRef(),
-                                UserData.ConstructedMethod cm => cm.ToMethodDescriptor(),
+                                MetadataMemberData mm => mm.Member,
+                                ConstructedTypeData ct => ct.Signature.ToTypeDefOrRef(),
+                                ConstructedMethodData cm => cm.ToMethodDescriptor(),
                                 _ => throw new InvalidOperationException(),
                             };
                             operand = member;
                             break;
                         case CilOperandType.InlineMethod:
-                            operand = GetUserData<UserData.ConstructedMethod>(expression.Arguments[0], state).ToMethodDescriptor();
+                            operand = GetUserData<ConstructedMethodData>(expression.Arguments[0], state).ToMethodDescriptor();
                             break;
                         case CilOperandType.InlineField:
-                            operand = GetUserData<UserData.ConstructedField>(expression.Arguments[0], state).ToFieldDescriptor();
+                            operand = GetUserData<ConstructedFieldData>(expression.Arguments[0], state).ToFieldDescriptor();
                             break;
                         case CilOperandType.InlineSig:
-                            operand = GetUserData<UserData.ConstructedMethodSignature>(expression.Arguments[0], state).ToSignature();
+                            operand = GetUserData<ConstructedMethodSignatureData>(expression.Arguments[0], state).ToSignature();
                             break;
                         case CilOperandType.InlineBrTarget:
                             operand = GetUserData<UserData>(expression.Arguments[0], state) switch
                             {
-                                UserData.LocalReference lr => GetLabelForLocal(lr.Variable, state),
-                                UserData.Label label => label,
+                                LocalReferenceData lr => GetLabelForLocal(lr.Variable, state),
+                                LabelData label => label,
                                 _ => throw new InvalidOperationException(),
                             };
                             break;
@@ -164,7 +165,7 @@ internal class InlineILAstVisitor : IAstNodeVisitor<CilInstruction, MethodState>
                 }
                 else if (method.Name!.Value is "Mark" or "DefineAndMark")
                 {
-                    var local = GetUserData<UserData.LocalReference>(expression.Arguments[0], state).Variable;
+                    var local = GetUserData<LocalReferenceData>(expression.Arguments[0], state).Variable;
                     var label = GetLabelForLocal(local, state);
                     state.ReplacementMap[expression.Instruction] = null;
                     state.LabelFixups[expression.Instruction] = label;
@@ -186,11 +187,11 @@ internal class InlineILAstVisitor : IAstNodeVisitor<CilInstruction, MethodState>
                 {
                     case "Create" when method.DeclaringType!.Name == "MethodRef":
                     {
-                        expression.UserData = new UserData.ConstructedMethod(
-                            GetUserData<UserData.ConstructedType>(expression.Arguments[0], state).Signature.ToTypeDefOrRef(),
-                            GetUserData<UserData.String>(expression.Arguments[1], state).Value,
-                            GetUserData<UserData.ConstructedType>(expression.Arguments[2], state).Signature,
-                            (CallingConventionAttributes)GetUserData<UserData.Int32>(expression.Arguments[3], state).Value,
+                        expression.UserData = new ConstructedMethodData(
+                            GetUserData<ConstructedTypeData>(expression.Arguments[0], state).Signature.ToTypeDefOrRef(),
+                            GetUserData<StringData>(expression.Arguments[1], state).Value,
+                            GetUserData<ConstructedTypeData>(expression.Arguments[2], state).Signature,
+                            (CallingConventionAttributes)GetUserData<Int32Data>(expression.Arguments[3], state).Value,
                             ImmutableList<TypeSignature>.Empty,
                             ImmutableList<TypeSignature>.Empty
                         );
@@ -198,64 +199,79 @@ internal class InlineILAstVisitor : IAstNodeVisitor<CilInstruction, MethodState>
                     }
                     case "Create" when method.DeclaringType!.Name == "MethodSig":
                     {
-                        expression.UserData = new UserData.ConstructedMethodSignature(
-                            GetUserData<UserData.ConstructedType>(expression.Arguments[0], state).Signature,
-                            (CallingConventionAttributes)GetUserData<UserData.Int32>(expression.Arguments[1], state).Value,
+                        expression.UserData = new ConstructedMethodSignatureData(
+                            GetUserData<ConstructedTypeData>(expression.Arguments[0], state).Signature,
+                            (CallingConventionAttributes)GetUserData<Int32Data>(expression.Arguments[1], state).Value,
                             ImmutableList<TypeSignature>.Empty
                         );
                         break;
                     }
                     case "Create" when method.DeclaringType!.Name == "FieldRef":
                     {
-                        expression.UserData = new UserData.ConstructedField(
-                            GetUserData<UserData.ConstructedType>(expression.Arguments[0], state).Signature.ToTypeDefOrRef(),
-                            GetUserData<UserData.String>(expression.Arguments[1], state).Value,
-                            GetUserData<UserData.ConstructedType>(expression.Arguments[2], state).Signature,
-                            (CallingConventionAttributes)GetUserData<UserData.Int32>(expression.Arguments[3], state).Value
+                        expression.UserData = new ConstructedFieldData(
+                            GetUserData<ConstructedTypeData>(expression.Arguments[0], state).Signature.ToTypeDefOrRef(),
+                            GetUserData<StringData>(expression.Arguments[1], state).Value,
+                            GetUserData<ConstructedTypeData>(expression.Arguments[2], state).Signature,
+                            (CallingConventionAttributes)GetUserData<Int32Data>(expression.Arguments[3], state).Value
                         );
+                        break;
+                    }
+                    case "Create" when method.DeclaringType!.Name == "AssemblyRef":
+                    {
+                        var mod = state.Method.DeclaringModule!;
+                        var desc = new ReflectionAssemblyDescriptor(mod, new AssemblyName(GetUserData<StringData>(expression.Arguments[0], state).Value));
+                        expression.UserData = new ConstructedAssemblyData(desc.ImportWith(mod.DefaultImporter));
                         break;
                     }
                     case "GenericTypeParam":
                     {
-                        var index = GetUserData<UserData.Int32>(expression.Arguments[0], state).Value;
-                        expression.UserData = new UserData.ConstructedType(new GenericParameterSignature(state.Method.Module, GenericParameterType.Type, index));
+                        var index = GetUserData<Int32Data>(expression.Arguments[0], state).Value;
+                        expression.UserData = new ConstructedTypeData(new GenericParameterSignature(state.Method.DeclaringModule, GenericParameterType.Type, index));
                         break;
                     }
                     case "GenericMethodParam":
                     {
-                        var index = GetUserData<UserData.Int32>(expression.Arguments[0], state).Value;
-                        expression.UserData = new UserData.ConstructedType(new GenericParameterSignature(state.Method.Module, GenericParameterType.Method, index));
+                        var index = GetUserData<Int32Data>(expression.Arguments[0], state).Value;
+                        expression.UserData = new ConstructedTypeData(new GenericParameterSignature(state.Method.DeclaringModule, GenericParameterType.Method, index));
                         break;
                     }
                     case "WithParameter":
                     {
                         var originalMethod = GetUserData<UserData>(expression.Arguments[0], state);
-                        var newParam = GetUserData<UserData.ConstructedType>(expression.Arguments[1], state).Signature;
+                        var newParam = GetUserData<ConstructedTypeData>(expression.Arguments[1], state).Signature;
                         expression.UserData = originalMethod switch
                         {
-                            UserData.ConstructedMethod cm => cm with { ParameterTypes = cm.ParameterTypes.Add(newParam) },
-                            UserData.ConstructedMethodSignature cms => cms with { ParameterTypes = cms.ParameterTypes.Add(newParam) },
+                            ConstructedMethodData cm => cm with { ParameterTypes = cm.ParameterTypes.Add(newParam) },
+                            ConstructedMethodSignatureData cms => cms with { ParameterTypes = cms.ParameterTypes.Add(newParam) },
                             _ => throw new NotSupportedException(),
                         };
                         break;
                     }
-                    case "WithGenericArg":
+                    case "WithGenericArg" when method.DeclaringType!.Name == "MethodRef":
                     {
-                        var originalMethod = GetUserData<UserData.ConstructedMethod>(expression.Arguments[0], state);
-                        var newArg = GetUserData<UserData.ConstructedType>(expression.Arguments[1], state).Signature;
+                        var originalMethod = GetUserData<ConstructedMethodData>(expression.Arguments[0], state);
+                        var newArg = GetUserData<ConstructedTypeData>(expression.Arguments[1], state).Signature;
                         expression.UserData = originalMethod with { GenericArguments = originalMethod.GenericArguments.Add(newArg) };
+                        break;
+                    }
+                    case "WithGenericArg" when method.DeclaringType!.Name == "TypeRef":
+                    {
+                        var originalType = GetUserData<ConstructedTypeData>(expression.Arguments[0], state).Signature;
+                        var newArg = GetUserData<ConstructedTypeData>(expression.Arguments[1], state).Signature;
+                        var args = originalType is GenericInstanceTypeSignature gits ? gits.TypeArguments : [];
+                        expression.UserData = new ConstructedTypeData(originalType.GetUnderlyingTypeDefOrRef()!.MakeGenericInstanceType(state.RuntimeContext, [..args, newArg]));
                         break;
                     }
                     case "MakePointerType":
                     {
-                        var type = GetUserData<UserData.ConstructedType>(expression.Arguments[0], state).Signature;
-                        expression.UserData = new UserData.ConstructedType(type.MakePointerType());
+                        var type = GetUserData<ConstructedTypeData>(expression.Arguments[0], state).Signature;
+                        expression.UserData = new ConstructedTypeData(type.MakePointerType());
                         break;
                     }
                     case "MakeByRefType":
                     {
-                        var type = GetUserData<UserData.ConstructedType>(expression.Arguments[0], state).Signature;
-                        expression.UserData = new UserData.ConstructedType(type.MakeByReferenceType());
+                        var type = GetUserData<ConstructedTypeData>(expression.Arguments[0], state).Signature;
+                        expression.UserData = new ConstructedTypeData(type.MakeByReferenceType());
                         break;
                     }
                     case "op_Implicit":
@@ -265,53 +281,61 @@ internal class InlineILAstVisitor : IAstNodeVisitor<CilInstruction, MethodState>
                     }
                     case "GetTypeFromHandle":
                     {
-                        var type = (ITypeDescriptor)GetUserData<UserData.MetadataMember>(expression.Arguments[0], state).Member;
-                        expression.UserData = new UserData.ConstructedType(type.ToTypeSignature());
+                        var type = (ITypeDescriptor)GetUserData<MetadataMemberData>(expression.Arguments[0], state).Member;
+                        expression.UserData = new ConstructedTypeData(type.ToTypeSignature(state.RuntimeContext));
+                        break;
+                    }
+                    case "CreateTypeRef":
+                    {
+                        var assembly = GetUserData<ConstructedAssemblyData>(expression.Arguments[0], state).AssemblyDescriptor;
+                        var @namespace = GetUserData<StringData>(expression.Arguments[1], state).Value;
+                        var name = GetUserData<StringData>(expression.Arguments[2], state).Value;
+                        var isValueType = GetUserData<Int32Data>(expression.Arguments[3], state).Value != 0;
+                        expression.UserData = new ConstructedTypeData(new TypeReference(state.Method.DeclaringModule!, assembly, @namespace, name).ToTypeSignature(isValueType));
                         break;
                     }
                     case "Use":
                     {
-                        var local = GetUserData<UserData.LocalReference>(expression.Arguments[0], state).Variable;
+                        var local = GetUserData<LocalReferenceData>(expression.Arguments[0], state).Variable;
                         expression.UserData = GetLabelForLocal(local, state);
                         break;
                     }
                 }
                 break;
             case CilCode.Ldstr:
-                expression.UserData = new UserData.String((string)expression.Instruction.Operand!);
+                expression.UserData = new StringData((string)expression.Instruction.Operand!);
                 break;
             case CilCode.Ldtoken:
-                expression.UserData = new UserData.MetadataMember((IMetadataMember)expression.Instruction.Operand!);
+                expression.UserData = new MetadataMemberData((IMetadataMember)expression.Instruction.Operand!);
                 break;
             case CilCode.Ldc_I4:
-                expression.UserData = new UserData.Int32((int)expression.Instruction.Operand!);
+                expression.UserData = new Int32Data((int)expression.Instruction.Operand!);
                 break;
             case CilCode.Ldc_I8:
-                expression.UserData = new UserData.Int64((long)expression.Instruction.Operand!);
+                expression.UserData = new Int64Data((long)expression.Instruction.Operand!);
                 break;
             case CilCode.Ldc_R4:
-                expression.UserData = new UserData.Single((float)expression.Instruction.Operand!);
+                expression.UserData = new SingleData((float)expression.Instruction.Operand!);
                 break;
             case CilCode.Ldc_R8:
-                expression.UserData = new UserData.Double((double)expression.Instruction.Operand!);
+                expression.UserData = new DoubleData((double)expression.Instruction.Operand!);
                 break;
             case CilCode.Ldloc:
-                expression.UserData = new UserData.LocalReference((CilLocalVariable)expression.Instruction.Operand!);
-                break;
             case CilCode.Ldloca:
-                expression.UserData = new UserData.LocalReference((CilLocalVariable)expression.Instruction.Operand!);
+                expression.UserData = new LocalReferenceData((CilLocalVariable)expression.Instruction.Operand!);
                 break;
+            case CilCode.Ldarg:
             case CilCode.Ldarga:
-                expression.UserData = new UserData.ParameterReference((Parameter)expression.Instruction.Operand!);
+                expression.UserData = new ParameterReferenceData((Parameter)expression.Instruction.Operand!);
                 break;
         }
     }
 
-    private UserData.Label GetLabelForLocal(CilLocalVariable local, MethodState state)
+    private LabelData GetLabelForLocal(CilLocalVariable local, MethodState state)
     {
         if (!state.Labels.TryGetValue(local, out var label))
         {
-            state.Labels[local] = label = new UserData.Label(local);
+            state.Labels[local] = label = new LabelData(local);
         }
 
         return label;

@@ -2,27 +2,33 @@
 
     <PropertyGroup>
         <OutputType>Exe</OutputType>
-        <TargetFramework>net9.0</TargetFramework>
-        <DebugType>embedded</DebugType>
+        <TargetFramework>net10.0</TargetFramework>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
-    
+
     <ItemGroup>
-        <PackageReference Include="System.Reflection.Metadata" />
-        
-        <ProjectReference Include="../../src/Windows10CE.InlineIL/Windows10CE.InlineIL.csproj" />
-        <ProjectReference Include="../../src/Windows10CE.InlineIL.PortablePdb/Windows10CE.InlineIL.PortablePdb.csproj" />
+        <ProjectReference Include="../../src/Windows10CE.InlineIL/Windows10CE.InlineIL.csproj" Private="false" />
         <ProjectReference Include="../../src/Windows10CE.InlineIL.Task/Windows10CE.InlineIL.Task.csproj" ReferenceOutputAssembly="false" />
     </ItemGroup>
-    
+
     <UsingTask TaskName="Windows10CE.InlineIL.Task.InlineILTask" AssemblyFile="$(ArtifactsPath)/bin/Windows10CE.InlineIL.Task/$([System.String]::new($(Configuration)).ToLower())/Windows10CE.InlineIL.Task.dll" />
 
-    <Target Name="InlineIL" AfterTargets="CoreCompile">
-        <InlineILTask InputPath="@(IntermediateAssembly)" References="@(ReferencePath)" OutputPath="@(IntermediateAssembly)" TargetFramework="$(TargetFramework)" DebugType="$(DebugType)" PdbFile="$(PdbFile)" />
+    <Target
+            Name="InlineIL"
+            AfterTargets="CoreCompile"
+            Inputs="@(IntermediateAssembly)"
+            Outputs="@(IntermediateAssembly->'%(Identity).InlineILMarker')"
+            Condition="$(DesignTimeBuild) != true"
+    >
+        <Copy SourceFiles="@(IntermediateAssembly)" DestinationFiles="%(Identity).before.InlineIL" />
+        <InlineILTask InputPath="@(IntermediateAssembly)" References="@(ReferencePath)" OutputPath="@(IntermediateAssembly)" PdbFile="$(PdbFile)" />
+        <Touch Files="@(IntermediateAssembly->'%(Identity).InlineILMarker')" AlwaysCreate="true" />
         
         <ItemGroup>
+            <FileWrites Include="@(IntermediateAssembly->'%(Identity).before.InlineIL')" />
             <FileWrites Include="@(IntermediateAssembly)" />
+            <FileWrites Include="@(IntermediateAssembly->'%(Identity).InlineILMarker')" />
         </ItemGroup>
     </Target>
-    
+
 </Project>

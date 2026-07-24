@@ -7,8 +7,6 @@
     <ItemGroup>
         <PackageReference Include="Echo.Ast" />
         <PackageReference Include="Echo.Platforms.AsmResolver" />
-        
-        <ProjectReference Include="../Windows10CE.InlineIL.PortablePdb/Windows10CE.InlineIL.PortablePdb.csproj" />
     </ItemGroup>
 
 </Project>
